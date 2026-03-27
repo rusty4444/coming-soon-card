@@ -1,0 +1,1 @@
+A cinematic Home Assistant card that displays upcoming movies and TV episodes from your Radarr and Sonarr libraries. Features poster-centric design with countdown timers, release dates, and trailer playback.
