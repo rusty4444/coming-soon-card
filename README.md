@@ -27,10 +27,11 @@ A cinematic Home Assistant card that displays upcoming movies and TV episodes fr
 ## Install via HACS (Recommended)
 
 1. Open **HACS** in Home Assistant
-2. Click **Frontend** → **+ Explore & Download Repositories**
-3. Search for **Coming Soon Card**
-4. Click **Download**
-5. Refresh your browser (Ctrl+Shift+R)
+2. Click the **three dots** menu (top right) → **Custom repositories**
+3. Paste `https://github.com/rusty4444/coming-soon-card` and select **Dashboard** as the category
+4. Click **Add**
+5. Search for **Coming Soon Card** in HACS → **Download**
+6. Refresh your browser (Ctrl+Shift+R)
 
 ## Install Manually
 
