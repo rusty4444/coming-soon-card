@@ -141,10 +141,17 @@ class ComingSoonCard extends HTMLElement {
         // Filter: must not have file and air date must be today or future
         const nowSonarr = new Date();
         nowSonarr.setHours(0, 0, 0, 0);
-        sonarrItems = (Array.isArray(data) ? data : [])
+        const filtered = (Array.isArray(data) ? data : [])
           .filter(ep => !ep.hasFile && ep.airDateUtc && new Date(ep.airDateUtc) >= nowSonarr)
-          .sort((a, b) => new Date(a.airDateUtc) - new Date(b.airDateUtc))
-          .slice(0, this._config.shows_count);
+          .sort((a, b) => new Date(a.airDateUtc) - new Date(b.airDateUtc));
+        // Dedupe: only show the first upcoming episode per series
+        const seenSeries = new Set();
+        sonarrItems = filtered.filter(ep => {
+          const seriesId = ep.seriesId || (ep.series && ep.series.id);
+          if (seenSeries.has(seriesId)) return false;
+          seenSeries.add(seriesId);
+          return true;
+        }).slice(0, this._config.shows_count);
       } else {
         console.warn('Coming Soon Card: Sonarr HTTP', sonarrResp.status);
       }
