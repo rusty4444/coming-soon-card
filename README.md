@@ -20,6 +20,7 @@ A cinematic Home Assistant card that displays upcoming movies and TV episodes fr
 - **Visual editor** — configure everything from the HA UI, no YAML needed
 - **Responsive** — poster scales to fit any card width
 - **Filters past releases** — only shows items with future release/air dates that haven't been downloaded yet
+- **Deduplicates TV shows** — only shows the next upcoming episode per series, even if multiple episodes air the same day
 
 ---
 
