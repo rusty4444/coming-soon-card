@@ -39,21 +39,21 @@ The default layout — poster front and centre with title, countdown, and releas
 Poster on the left with full details on the right — title, episode info, countdown, release date, and synopsis.
 
 <p align="center">
-  <img src="screenshots/layout-detailed.jpg" alt="Detailed Layout" width="500">
+  <img src="screenshots/layout-fanart.jpg" alt="Fanart Layout" width="500">
 </p>
 
 ### Key Art / Fanart
 Switch from portrait poster art to landscape key art/fanart for a more cinematic look.
 
 <p align="center">
-  <img src="screenshots/layout-fanart.jpg" alt="Fanart Layout" width="500">
+  <img src="screenshots/layout-poster.jpg" alt="Detailed + Key Art Layout" width="500">
 </p>
 
 ### Detailed + Key Art
 Combine detailed layout with fanart for a full info view with landscape key art.
 
 <p align="center">
-  <img src="screenshots/layout-poster.jpg" alt="Detailed + Key Art Layout" width="500">
+  <img src="screenshots/layout-detailed.jpg" alt="Detailed Layout" width="500">
 </p>
 
 ---
