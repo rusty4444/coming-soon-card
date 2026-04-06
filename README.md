@@ -3,7 +3,7 @@
 A cinematic Home Assistant card that displays upcoming movies and TV episodes from your [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) libraries. Multiple layout options, countdown timers, release dates, swipe navigation, and trailer playback.
 
 <p align="center">
-  <img src="screenshots/layout-poster.jpg" alt="Coming Soon Card — Poster Layout" width="400">
+  <img src="screenshots/coming-soon-card.jpg" alt="Coming Soon Card — Poster Layout" width="400">
 </p>
 
 ## Features
@@ -32,7 +32,7 @@ A cinematic Home Assistant card that displays upcoming movies and TV episodes fr
 The default layout — poster front and centre with title, countdown, and release date overlaid at the bottom.
 
 <p align="center">
-  <img src="screenshots/layout-poster.jpg" alt="Poster Layout" width="400">
+  <img src="screenshots/coming-soon-card.jpg" alt="Poster Layout" width="400">
 </p>
 
 ### Detailed (poster + info)
@@ -47,6 +47,13 @@ Switch from portrait poster art to landscape key art/fanart for a more cinematic
 
 <p align="center">
   <img src="screenshots/layout-fanart.jpg" alt="Fanart Layout" width="500">
+</p>
+
+### Detailed + Key Art
+Combine detailed layout with fanart for a full info view with landscape key art.
+
+<p align="center">
+  <img src="screenshots/layout-poster.jpg" alt="Detailed + Key Art Layout" width="500">
 </p>
 
 ---
