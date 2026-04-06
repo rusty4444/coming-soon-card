@@ -31,6 +31,8 @@ class ComingSoonCard extends HTMLElement {
       cycle_interval: config.cycle_interval || 8,
       title: config.title !== undefined ? config.title : 'Coming Soon',
       tmdb_api_key: config.tmdb_api_key || null,
+      layout: config.layout || 'poster',
+      image_type: config.image_type || 'poster',
 
       ...config,
     };
@@ -253,43 +255,40 @@ class ComingSoonCard extends HTMLElement {
       bgEl.style.backgroundImage = `url(${item.fanartUrl})`;
     }
 
-    // Poster
+    // Poster — choose image based on image_type config
+    const useImage = this._config.image_type === 'fanart' ? item.fanartUrl : item.posterUrl;
     const posterEl = root.querySelector('.poster');
-    if (posterEl && item.posterUrl) {
+    if (posterEl && useImage) {
       posterEl.style.opacity = '0';
       const img = new Image();
       img.onload = () => {
         posterEl.src = img.src;
         posterEl.style.opacity = '1';
       };
-      img.src = item.posterUrl;
+      img.src = useImage;
     }
 
-    // Text elements
-    const titleEl = root.querySelector('.item-title');
-    const subtitleEl = root.querySelector('.item-subtitle');
-    const typeEl = root.querySelector('.item-type');
-    const summaryEl = root.querySelector('.item-summary');
+    // Text elements — use querySelectorAll so both poster-overlay and info panel copies get updated
+    root.querySelectorAll('.item-title').forEach(el => { el.textContent = item.title; });
+    root.querySelectorAll('.item-subtitle').forEach(el => { el.textContent = item.subtitle; });
+    root.querySelectorAll('.item-type').forEach(el => {
+      el.textContent = item.typeLabel;
+      el.className = `item-type ${item.type}`;
+    });
+    root.querySelectorAll('.item-summary').forEach(el => { el.textContent = item.overview; });
+
     const dotsEl = root.querySelector('.dots');
     const counterEl = root.querySelector('.counter');
-    const countdownEl = root.querySelector('.item-countdown');
-    const dateEl = root.querySelector('.item-date');
 
-    if (titleEl) titleEl.textContent = item.title;
-    if (subtitleEl) subtitleEl.textContent = item.subtitle;
-    if (typeEl) {
-      typeEl.textContent = item.typeLabel;
-      typeEl.className = `item-type ${item.type}`;
-    }
-    if (summaryEl) summaryEl.textContent = item.overview;
-
-    // Countdown + date
-    if (countdownEl) {
-      countdownEl.textContent = item.releaseDate ? this._formatCountdown(item.releaseDate) : '';
-    }
-    if (dateEl) {
-      dateEl.textContent = item.releaseDate ? this._formatDate(item.releaseDate) : '';
-    }
+    // Countdown + date — update all copies
+    root.querySelectorAll('.item-countdown').forEach(el => {
+      el.textContent = item.releaseDate ? this._formatCountdown(item.releaseDate) : '';
+    });
+    root.querySelectorAll('.item-date').forEach(el => {
+      el.textContent = item.releaseDate ? this._formatDate(item.releaseDate) : '';
+    });
+    // Keep separator in sync
+    root.querySelectorAll('.item-countdown-sep').forEach(el => { el.textContent = '·'; });
 
     // Dots — color-coded: gold for movies, blue for TV
     if (dotsEl) {
@@ -499,6 +498,9 @@ class ComingSoonCard extends HTMLElement {
 
   _render() {
     const title = this._config.title;
+    const layout = this._config.layout || 'poster';
+    const imageType = this._config.image_type || 'poster';
+    const cardClasses = `card layout-${layout} image-${imageType}`;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -536,6 +538,7 @@ class ComingSoonCard extends HTMLElement {
           background: var(--card-bg);
           overflow: hidden;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          user-select: none;
         }
 
         /* Background art with blur */
@@ -619,20 +622,25 @@ class ComingSoonCard extends HTMLElement {
           flex-direction: column;
           align-items: center;
           position: relative;
+          width: 100%;
         }
 
         /* Poster */
         .poster-wrap {
           position: relative;
           width: clamp(140px, 50%, 220px);
+          aspect-ratio: 2/3;
           border-radius: 8px;
           overflow: hidden;
           box-shadow: 0 8px 30px rgba(0,0,0,0.6);
           background: #111;
+          flex-shrink: 0;
         }
 
         .poster {
           width: 100%;
+          height: 100%;
+          object-fit: cover;
           display: block;
           transition: opacity 0.5s ease;
         }
@@ -644,7 +652,6 @@ class ComingSoonCard extends HTMLElement {
           right: 0;
           padding: 12px;
           background: linear-gradient(transparent, rgba(0,0,0,0.85));
-          display: flex;
           flex-direction: column;
           align-items: center;
           gap: 4px;
@@ -667,16 +674,32 @@ class ComingSoonCard extends HTMLElement {
           100% { transform: translateX(100%); }
         }
 
-        /* Info */
+        /* Info panel (detailed layout) */
         .info {
-          flex: 1;
-          display: flex;
           flex-direction: column;
-          justify-content: center;
+          gap: 6px;
+          flex: 1;
           min-width: 0;
-          gap: 8px;
+          justify-content: center;
         }
 
+        /* Layout: poster (default) */
+        .layout-poster .info { display: none; }
+        .layout-poster .poster-overlay { display: flex; }
+
+        /* Layout: detailed */
+        .layout-detailed .poster-overlay { display: none; }
+        .layout-detailed .info { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+        .layout-detailed .main { flex-direction: row; gap: 20px; align-items: flex-start; }
+        .layout-detailed .poster-wrap { width: clamp(100px, 30%, 180px); aspect-ratio: 2/3; }
+        .layout-detailed .content { align-items: flex-start; }
+
+        /* Image type: fanart */
+        .image-fanart .poster-wrap { aspect-ratio: 16/9; width: clamp(200px, 80%, 400px); }
+        .image-fanart.layout-detailed .main { flex-direction: column; }
+        .image-fanart.layout-detailed .poster-wrap { width: 100%; }
+
+        /* Shared text element styles */
         .item-type {
           display: inline-block;
           font-size: 11px;
@@ -698,7 +721,8 @@ class ComingSoonCard extends HTMLElement {
           color: var(--accent-tv);
         }
 
-        .item-title {
+        /* Poster layout text styles (inside poster-overlay) */
+        .poster-overlay .item-title {
           font-size: 15px;
           font-weight: 700;
           color: var(--text-primary);
@@ -710,14 +734,14 @@ class ComingSoonCard extends HTMLElement {
           max-width: 100%;
         }
 
-        .item-subtitle {
+        .poster-overlay .item-subtitle {
           font-size: 12px;
           color: rgba(255,255,255,0.8);
           line-height: 1.3;
           text-align: center;
         }
 
-        .meta-row {
+        .poster-overlay .meta-row {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -725,24 +749,71 @@ class ComingSoonCard extends HTMLElement {
           flex-wrap: wrap;
         }
 
-        .item-countdown {
+        .poster-overlay .item-countdown {
           font-size: 14px;
           font-weight: 600;
           color: var(--accent-gold);
         }
 
-        .meta-separator {
+        .poster-overlay .meta-separator {
           font-size: 12px;
           color: rgba(255,255,255,0.5);
         }
 
-        .item-date {
+        .poster-overlay .item-date {
           font-size: 13px;
           color: rgba(255,255,255,0.7);
         }
 
-        .item-summary {
-          display: none;
+        /* Detailed layout info panel text styles */
+        .info .item-title {
+          font-size: 24px;
+          font-weight: 700;
+          color: var(--text-primary);
+          line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 100%;
+        }
+
+        .info .item-subtitle {
+          font-size: 15px;
+          color: rgba(255,255,255,0.75);
+          line-height: 1.4;
+        }
+
+        .info .meta-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .info .item-countdown {
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--accent-gold);
+        }
+
+        .info .meta-separator {
+          font-size: 12px;
+          color: rgba(255,255,255,0.4);
+        }
+
+        .info .item-date {
+          font-size: 14px;
+          color: var(--text-dim);
+        }
+
+        .info .item-summary {
+          font-size: 14px;
+          color: var(--text-dim);
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 5;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
 
         /* Dots — color-coded */
@@ -840,7 +911,7 @@ class ComingSoonCard extends HTMLElement {
       </style>
 
       <ha-card>
-        <div class="card">
+        <div class="${cardClasses}">
           <div class="bg-art"></div>
           <div class="bg-art-next"></div>
           <div class="bg-overlay"></div>
@@ -869,6 +940,7 @@ class ComingSoonCard extends HTMLElement {
                 <img class="poster" src="" alt="">
                 <div class="poster-shimmer"></div>
               </div>
+              <!-- poster layout overlay -->
               <div class="poster-overlay">
                 <span class="item-type"></span>
                 <div class="item-title"></div>
@@ -879,6 +951,18 @@ class ComingSoonCard extends HTMLElement {
                   <span class="item-date"></span>
                 </div>
               </div>
+              <!-- detailed layout info panel -->
+              <div class="info">
+                <span class="item-type"></span>
+                <div class="item-title"></div>
+                <div class="item-subtitle"></div>
+                <div class="meta-row">
+                  <span class="item-countdown"></span>
+                  <span class="meta-separator item-countdown-sep"></span>
+                  <span class="item-date"></span>
+                </div>
+                <div class="item-summary"></div>
+              </div>
             </div>
 
             <div class="dots"></div>
@@ -887,9 +971,61 @@ class ComingSoonCard extends HTMLElement {
       </ha-card>
     `;
 
-    // Set separator text after render
-    const sep = this.shadowRoot.querySelector('.meta-separator');
-    if (sep) sep.textContent = '·';
+    this._attachSwipeListeners();
+  }
+
+  _attachSwipeListeners() {
+    const card = this.shadowRoot.querySelector('.card');
+    if (!card) return;
+
+    // Touch swipe
+    card.addEventListener('touchstart', (e) => {
+      this._touchStartX = e.touches[0].clientX;
+      this._touchStartY = e.touches[0].clientY;
+      this._touchStartTime = Date.now();
+    }, { passive: true });
+
+    card.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].clientX - this._touchStartX;
+      const dy = e.changedTouches[0].clientY - this._touchStartY;
+      const dt = Date.now() - this._touchStartTime;
+      this._handleSwipe(dx, dy, dt);
+    }, { passive: true });
+
+    // Mouse drag (for desktop)
+    card.addEventListener('mousedown', (e) => {
+      this._touchStartX = e.clientX;
+      this._touchStartY = e.clientY;
+      this._touchStartTime = Date.now();
+      this._mouseDown = true;
+    });
+
+    card.addEventListener('mouseup', (e) => {
+      if (!this._mouseDown) return;
+      this._mouseDown = false;
+      const dx = e.clientX - this._touchStartX;
+      const dy = e.clientY - this._touchStartY;
+      const dt = Date.now() - this._touchStartTime;
+      this._handleSwipe(dx, dy, dt);
+    });
+
+    card.addEventListener('mouseleave', () => { this._mouseDown = false; });
+  }
+
+  _handleSwipe(dx, dy, dt) {
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) >= 50 && dt < 500) {
+      if (dx < 0) {
+        this._currentIndex = (this._currentIndex + 1) % this._items.length;
+      } else {
+        this._currentIndex = (this._currentIndex - 1 + this._items.length) % this._items.length;
+      }
+      this._updateDisplay();
+      // Reset cycle timer
+      if (this._cycleTimer) {
+        clearInterval(this._cycleTimer);
+        this._startCycle();
+      }
+    }
   }
 
   getCardSize() {
@@ -907,6 +1043,8 @@ class ComingSoonCard extends HTMLElement {
       cycle_interval: 8,
       title: 'Coming Soon',
       fill_height: true,
+      layout: 'poster',
+      image_type: 'poster',
     };
   }
 
@@ -973,6 +1111,26 @@ class ComingSoonCard extends HTMLElement {
           name: 'card_height',
           selector: { number: { min: 200, max: 800, mode: 'box', unit_of_measurement: 'px' } },
         },
+        {
+          type: 'grid',
+          name: '',
+          schema: [
+            {
+              name: 'layout',
+              selector: { select: { options: [
+                { value: 'poster', label: 'Poster (centred)' },
+                { value: 'detailed', label: 'Detailed (poster + info)' },
+              ]}},
+            },
+            {
+              name: 'image_type',
+              selector: { select: { options: [
+                { value: 'poster', label: 'Poster art' },
+                { value: 'fanart', label: 'Key art / Fanart' },
+              ]}},
+            },
+          ],
+        },
       ],
       computeLabel: (schema) => {
         const labels = {
@@ -987,6 +1145,8 @@ class ComingSoonCard extends HTMLElement {
           tmdb_api_key: 'TMDB API Key (for trailers)',
           fill_height: 'Fill Container Height',
           card_height: 'Card Height',
+          layout: 'Layout',
+          image_type: 'Image Type',
         };
         return labels[schema.name] || schema.name;
       },
@@ -999,6 +1159,8 @@ class ComingSoonCard extends HTMLElement {
           tmdb_api_key: 'Optional — enables trailer button. Get a free key at themoviedb.org',
           fill_height: 'Enable if your card has proper height from the layout. Disable if collapsed.',
           card_height: 'Height in pixels when Fill Container Height is off. Default: 300',
+          layout: 'Poster: centred design with info on the poster. Detailed: poster on the left, text on the right.',
+          image_type: 'Poster: use the cover art. Fanart: use the backdrop/key art (landscape).',
         };
         return helpers[schema.name] || undefined;
       },

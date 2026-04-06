@@ -1,19 +1,21 @@
 # Coming Soon Card
 
-A cinematic Home Assistant card that displays upcoming movies and TV episodes from your [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) libraries. Poster-centric design with countdown timers, release dates, and trailer playback.
+A cinematic Home Assistant card that displays upcoming movies and TV episodes from your [Radarr](https://radarr.video/) and [Sonarr](https://sonarr.tv/) libraries. Multiple layout options, countdown timers, release dates, swipe navigation, and trailer playback.
 
 <p align="center">
-  <img src="screenshots/coming-soon-card.jpg" alt="Coming Soon Card" width="400">
+  <img src="screenshots/layout-poster.jpg" alt="Coming Soon Card — Poster Layout" width="400">
 </p>
 
 ## Features
 
 - **Upcoming movies** from Radarr with digital release dates
 - **Upcoming TV episodes** from Sonarr with air dates and season/episode numbers
+- **Multiple layouts** — centred poster or detailed view with poster + info side-by-side
+- **Image type toggle** — choose between poster art or key art/fanart
 - **Countdown timer** — "In 5 days", "Tomorrow", "Today"
 - **Formatted release date** — "8th of April 2026"
-- **Poster-centric design** — movie/show poster front and centre with info overlaid
-- **Blurred background art** — cinematic fanart behind the poster
+- **Swipe navigation** — swipe or click-and-drag left/right to move through items
+- **Blurred background art** — cinematic fanart behind the card content
 - **Trailer button** — plays trailers via TMDB (optional, requires free API key)
 - **Auto-cycling** — rotates through upcoming items with smooth transitions
 - **Color-coded dots** — gold for movies, blue for TV shows
@@ -21,6 +23,31 @@ A cinematic Home Assistant card that displays upcoming movies and TV episodes fr
 - **Responsive** — poster scales to fit any card width
 - **Filters past releases** — only shows items with future release/air dates that haven't been downloaded yet
 - **Deduplicates TV shows** — only shows the next upcoming episode per series, even if multiple episodes air the same day
+
+---
+
+## Layouts
+
+### Poster (centred)
+The default layout — poster front and centre with title, countdown, and release date overlaid at the bottom.
+
+<p align="center">
+  <img src="screenshots/layout-poster.jpg" alt="Poster Layout" width="400">
+</p>
+
+### Detailed (poster + info)
+Poster on the left with full details on the right — title, episode info, countdown, release date, and synopsis.
+
+<p align="center">
+  <img src="screenshots/layout-detailed.jpg" alt="Detailed Layout" width="500">
+</p>
+
+### Key Art / Fanart
+Switch from portrait poster art to landscape key art/fanart for a more cinematic look.
+
+<p align="center">
+  <img src="screenshots/layout-fanart.jpg" alt="Fanart Layout" width="500">
+</p>
 
 ---
 
@@ -68,6 +95,8 @@ movies_count: 5
 shows_count: 5
 cycle_interval: 8
 title: Coming Soon
+layout: poster
+image_type: poster
 tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN  # Optional: enables trailer button
 ```
 
@@ -83,9 +112,20 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN  # Optional: enables trailer button
 | `shows_count` | number | `5` | Number of upcoming TV episodes to display |
 | `cycle_interval` | number | `8` | Seconds between cycling to the next item |
 | `title` | string | `"Coming Soon"` | Header text (set to empty string to hide) |
+| `layout` | string | `"poster"` | `poster` (centred poster with overlay) or `detailed` (poster + info side-by-side) |
+| `image_type` | string | `"poster"` | `poster` (portrait poster art) or `fanart` (landscape key art/fanart) |
 | `tmdb_api_key` | string | Empty (trailers disabled) | TMDB Read Access Token — enables the trailer button |
 | `fill_height` | boolean | `true` | When enabled, card stretches to fill its container. Disable if the card appears collapsed |
 | `card_height` | number | `300` | Card height in pixels (only used when `fill_height` is `false`) |
+
+### Layout + Image Type combinations
+
+| Layout | Image Type | Result |
+|--------|-----------|--------|
+| `poster` | `poster` | Centred portrait poster with info overlaid (default) |
+| `poster` | `fanart` | Centred landscape fanart with info overlaid |
+| `detailed` | `poster` | Poster left, info right — traditional media card look |
+| `detailed` | `fanart` | Fanart on top, info below — cinematic widescreen look |
 
 ### Finding your API keys
 
@@ -97,6 +137,12 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN  # Optional: enables trailer button
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org/signup)
 2. Go to [API Settings](https://www.themoviedb.org/settings/api)
 3. Copy the **Read Access Token** (not the API Key)
+
+---
+
+## Swipe Navigation
+
+On touch devices, swipe left or right on the card to move through items. On desktop, click and drag left/right. The auto-cycle timer resets after each swipe.
 
 ---
 
@@ -118,12 +164,7 @@ The card fetches upcoming items from Radarr and Sonarr's calendar APIs (next 90 
 
 ## Related
 
-Looking for recently added content instead of upcoming? Check out:
-
-- [plex-recently-added-card](https://github.com/rusty4444/plex-recently-added-card) — for Plex
-- [jellyfin-recently-added-card](https://github.com/rusty4444/jellyfin-recently-added-card) — for Jellyfin
-- [emby-recently-added-card](https://github.com/rusty4444/emby-recently-added-card) — for Emby
-- [kodi-recently-added-card](https://github.com/rusty4444/kodi-recently-added-card) — for Kodi
+- [recently-added-media-card](https://github.com/rusty4444/recently-added-media-card) — Recently added movies and TV shows from Plex, Kodi, Jellyfin, or Emby
 
 ---
 
