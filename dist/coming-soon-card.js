@@ -2,7 +2,25 @@
  * Coming Soon Card
  * Custom Lovelace card that displays upcoming movies (from Radarr) and
  * upcoming TV episodes (from Sonarr) with interleaved cycling and cinematic transitions.
+ * Also supports Trakt as an independent data source.
  */
+
+// ─── Theme definitions ────────────────────────────────────────────────────────
+
+const THEMES = {
+  // Auto/default for coming-soon-card: teal/cyan accent
+  auto:     { primary: '#2dd4bf', secondary: '#5b9bd5', bg: '#1a1a1a' },
+  // Server type defaults
+  plex:     { primary: '#e5a00d', secondary: '#5b9bd5', bg: '#1a1a1a' },
+  kodi:     { primary: '#17b2e8', secondary: '#e5a00d', bg: '#1a1a1a' },
+  jellyfin: { primary: '#aa5cc3', secondary: '#5b9bd5', bg: '#1a1a1a' },
+  emby:     { primary: '#52b54b', secondary: '#e5a00d', bg: '#1a1a1a' },
+  // Named presets
+  dark:     { primary: '#aaaaaa', secondary: '#888888', bg: '#141414' },
+  midnight: { primary: '#4f8ef7', secondary: '#6ec6f5', bg: '#0d1117' },
+  sunset:   { primary: '#f97316', secondary: '#ef4444', bg: '#1c1008' },
+  forest:   { primary: '#22c55e', secondary: '#16a34a', bg: '#0d1a10' },
+};
 
 class ComingSoonCard extends HTMLElement {
   constructor() {
@@ -16,16 +34,19 @@ class ComingSoonCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.radarr_url) throw new Error('Please define radarr_url');
-    if (!config.radarr_api_key) throw new Error('Please define radarr_api_key');
-    if (!config.sonarr_url) throw new Error('Please define sonarr_url');
-    if (!config.sonarr_api_key) throw new Error('Please define sonarr_api_key');
+    // Require at least one data source
+    const hasRadarr = config.radarr_url && config.radarr_api_key;
+    const hasSonarr = config.sonarr_url && config.sonarr_api_key;
+    const hasTrakt  = config.trakt_api_key;
+    if (!hasRadarr && !hasSonarr && !hasTrakt) {
+      throw new Error('Please configure at least one data source: Radarr/Sonarr or Trakt');
+    }
 
     this._config = {
-      radarr_url: config.radarr_url,
-      radarr_api_key: config.radarr_api_key,
-      sonarr_url: config.sonarr_url,
-      sonarr_api_key: config.sonarr_api_key,
+      radarr_url: config.radarr_url || null,
+      radarr_api_key: config.radarr_api_key || null,
+      sonarr_url: config.sonarr_url || null,
+      sonarr_api_key: config.sonarr_api_key || null,
       movies_count: config.movies_count || 5,
       shows_count: config.shows_count || 5,
       cycle_interval: config.cycle_interval || 8,
@@ -33,6 +54,9 @@ class ComingSoonCard extends HTMLElement {
       tmdb_api_key: config.tmdb_api_key || null,
       layout: config.layout || 'poster',
       image_type: config.image_type || 'poster',
+      theme: config.theme || 'auto',
+      trakt_api_key: config.trakt_api_key || null,
+      trakt_access_token: config.trakt_access_token || null,
 
       ...config,
     };
@@ -105,106 +129,143 @@ class ComingSoonCard extends HTMLElement {
 
   async _fetchData() {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const offsetDays = this._config.days_offset || 0;
+      const startDate = new Date(Date.now() - offsetDays * 86400000);
+      const today = startDate.toISOString().split('T')[0];
       const end = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
 
-      const radarrBase = this._config.radarr_url.replace(/\/$/, '');
-      const sonarrBase = this._config.sonarr_url.replace(/\/$/, '');
+      const hasRadarr = this._config.radarr_url && this._config.radarr_api_key;
+      const hasSonarr = this._config.sonarr_url && this._config.sonarr_api_key;
+      const hasTrakt  = this._config.trakt_api_key;
 
-      // Fetch from Radarr and Sonarr in parallel
-      const [radarrResp, sonarrResp] = await Promise.all([
-        fetch(
-          `${radarrBase}/api/v3/calendar?start=${today}&end=${end}&unmonitored=false`,
-          { headers: { 'X-Api-Key': this._config.radarr_api_key } }
-        ),
-        fetch(
-          `${sonarrBase}/api/v3/calendar?start=${today}&end=${end}&unmonitored=false&includeSeries=true`,
-          { headers: { 'X-Api-Key': this._config.sonarr_api_key } }
-        ),
-      ]);
+      let movieItems = [];
+      let tvItems = [];
 
-      let radarrItems = [];
-      if (radarrResp.ok) {
-        const data = await radarrResp.json();
-        // Filter: must not have file, must have a digitalRelease date, and release must be today or future
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        radarrItems = (Array.isArray(data) ? data : [])
-          .filter(m => !m.hasFile && m.digitalRelease && new Date(m.digitalRelease) >= now)
-          .sort((a, b) => new Date(a.digitalRelease) - new Date(b.digitalRelease))
-          .slice(0, this._config.movies_count);
-      } else {
-        console.warn('Coming Soon Card: Radarr HTTP', radarrResp.status);
+      // ─── Radarr / Sonarr ───────────────────────────────────────────────────────────
+      if (hasRadarr || hasSonarr) {
+        const fetches = [];
+        if (hasRadarr) {
+          const radarrBase = this._config.radarr_url.replace(/\/$/, '');
+          fetches.push(
+            fetch(`${radarrBase}/api/v3/calendar?start=${today}&end=${end}&unmonitored=false`,
+              { headers: { 'X-Api-Key': this._config.radarr_api_key } })
+          );
+        } else {
+          fetches.push(Promise.resolve(null));
+        }
+        if (hasSonarr) {
+          const sonarrBase = this._config.sonarr_url.replace(/\/$/, '');
+          fetches.push(
+            fetch(`${sonarrBase}/api/v3/calendar?start=${today}&end=${end}&unmonitored=false&includeSeries=true`,
+              { headers: { 'X-Api-Key': this._config.sonarr_api_key } })
+          );
+        } else {
+          fetches.push(Promise.resolve(null));
+        }
+
+        const [radarrResp, sonarrResp] = await Promise.all(fetches);
+
+        if (radarrResp && radarrResp.ok) {
+          const data = await radarrResp.json();
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
+          const offsetStart = new Date(now - offsetDays * 86400000);
+          const radarrItems = (Array.isArray(data) ? data : [])
+            .filter(m => !m.hasFile && m.digitalRelease && new Date(m.digitalRelease) >= offsetStart)
+            .sort((a, b) => new Date(a.digitalRelease) - new Date(b.digitalRelease))
+            .slice(0, this._config.movies_count);
+          movieItems = radarrItems.map(m => {
+            const genres = (m.genres || []).join(' · ');
+            return {
+              type: 'movie',
+              typeLabel: 'Movie',
+              title: m.title,
+              year: m.year,
+              subtitle: [m.year, genres].filter(Boolean).join(' · '),
+              genres,
+              releaseDate: m.digitalRelease,
+              overview: m.overview || '',
+              posterUrl: this._getPosterUrl(m.images),
+              fanartUrl: this._getFanartUrl(m.images),
+              tmdbId: m.tmdbId || null,
+              rating: m.ratings && m.ratings.value ? m.ratings.value : null,
+              trailerUrl: null,
+            };
+          });
+        } else if (radarrResp) {
+          console.warn('Coming Soon Card: Radarr HTTP', radarrResp.status);
+        }
+
+        if (sonarrResp && sonarrResp.ok) {
+          const data = await sonarrResp.json();
+          const nowSonarr = new Date();
+          nowSonarr.setHours(0, 0, 0, 0);
+          const sonarrOffsetStart = new Date(nowSonarr - offsetDays * 86400000);
+          const filtered = (Array.isArray(data) ? data : [])
+            .filter(ep => !ep.hasFile && ep.airDateUtc && new Date(ep.airDateUtc) >= sonarrOffsetStart)
+            .sort((a, b) => new Date(a.airDateUtc) - new Date(b.airDateUtc));
+          const seenSeries = new Set();
+          const sonarrItems = filtered.filter(ep => {
+            const seriesId = ep.seriesId || (ep.series && ep.series.id);
+            if (seenSeries.has(seriesId)) return false;
+            seenSeries.add(seriesId);
+            return true;
+          }).slice(0, this._config.shows_count);
+          tvItems = sonarrItems.map(ep => {
+            const series = ep.series || {};
+            const sNum = String(ep.seasonNumber || 0).padStart(2, '0');
+            const eNum = String(ep.episodeNumber || 0).padStart(2, '0');
+            const episodeLabel = `S${sNum}E${eNum}` + (ep.title ? ` · ${ep.title}` : '');
+            const tmdbId = series.tmdbId || null;
+            return {
+              type: 'tv',
+              typeLabel: 'TV',
+              title: series.title || ep.title || '',
+              subtitle: episodeLabel,
+              releaseDate: ep.airDate || (ep.airDateUtc ? ep.airDateUtc.split('T')[0] : null),
+              overview: ep.overview || '',
+              posterUrl: this._getPosterUrl(series.images),
+              fanartUrl: this._getFanartUrl(series.images),
+              tmdbId,
+              seriesTitle: series.title || '',
+              seasonNumber: ep.seasonNumber || null,
+              episodeNumber: ep.episodeNumber || null,
+              rating: null,
+              trailerUrl: null,
+            };
+          });
+        } else if (sonarrResp) {
+          console.warn('Coming Soon Card: Sonarr HTTP', sonarrResp.status);
+        }
       }
 
-      let sonarrItems = [];
-      if (sonarrResp.ok) {
-        const data = await sonarrResp.json();
-        // Filter: must not have file and air date must be today or future
-        const nowSonarr = new Date();
-        nowSonarr.setHours(0, 0, 0, 0);
-        const filtered = (Array.isArray(data) ? data : [])
-          .filter(ep => !ep.hasFile && ep.airDateUtc && new Date(ep.airDateUtc) >= nowSonarr)
-          .sort((a, b) => new Date(a.airDateUtc) - new Date(b.airDateUtc));
-        // Dedupe: only show the first upcoming episode per series
-        const seenSeries = new Set();
-        sonarrItems = filtered.filter(ep => {
-          const seriesId = ep.seriesId || (ep.series && ep.series.id);
-          if (seenSeries.has(seriesId)) return false;
-          seenSeries.add(seriesId);
-          return true;
-        }).slice(0, this._config.shows_count);
-      } else {
-        console.warn('Coming Soon Card: Sonarr HTTP', sonarrResp.status);
+      // ─── Trakt ─────────────────────────────────────────────────────────────────────
+      if (hasTrakt) {
+        const traktData = await this._fetchTraktData(today);
+        // Merge and deduplicate by title
+        const existingMovieTitles = new Set(movieItems.map(m => m.title.toLowerCase()));
+        const existingTvTitles = new Set(tvItems.map(t => t.title.toLowerCase()));
+        for (const item of traktData.movies) {
+          if (!existingMovieTitles.has(item.title.toLowerCase())) {
+            movieItems.push(item);
+            existingMovieTitles.add(item.title.toLowerCase());
+          }
+        }
+        for (const item of traktData.shows) {
+          if (!existingTvTitles.has(item.title.toLowerCase())) {
+            tvItems.push(item);
+            existingTvTitles.add(item.title.toLowerCase());
+          }
+        }
+        // Re-sort by release date after merge
+        movieItems.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+        tvItems.sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+        // Trim to configured counts
+        movieItems = movieItems.slice(0, this._config.movies_count);
+        tvItems = tvItems.slice(0, this._config.shows_count);
       }
 
-      // Map movies
-      const movieItems = radarrItems.map(m => {
-        const genres = (m.genres || []).join(' · ');
-        return {
-          type: 'movie',
-          typeLabel: 'Movie',
-          title: m.title,
-          year: m.year,
-          subtitle: [m.year, genres].filter(Boolean).join(' · '),
-          genres,
-          releaseDate: m.digitalRelease,
-          overview: m.overview || '',
-          posterUrl: this._getPosterUrl(m.images),
-          fanartUrl: this._getFanartUrl(m.images),
-          tmdbId: m.tmdbId || null,
-          rating: m.ratings && m.ratings.value ? m.ratings.value : null,
-          trailerUrl: null,
-        };
-      });
-
-      // Map TV episodes
-      const tvItems = sonarrItems.map(ep => {
-        const series = ep.series || {};
-        const sNum = String(ep.seasonNumber || 0).padStart(2, '0');
-        const eNum = String(ep.episodeNumber || 0).padStart(2, '0');
-        const episodeLabel = `S${sNum}E${eNum}` + (ep.title ? ` · ${ep.title}` : '');
-        // Try to get TMDB ID from series
-        const tmdbId = series.tmdbId || null;
-        return {
-          type: 'tv',
-          typeLabel: 'TV',
-          title: series.title || ep.title || '',
-          subtitle: episodeLabel,
-          releaseDate: ep.airDate || (ep.airDateUtc ? ep.airDateUtc.split('T')[0] : null),
-          overview: ep.overview || '',
-          posterUrl: this._getPosterUrl(series.images),
-          fanartUrl: this._getFanartUrl(series.images),
-          tmdbId,
-          seriesTitle: series.title || '',
-          seasonNumber: ep.seasonNumber || null,
-          episodeNumber: ep.episodeNumber || null,
-          rating: null,
-          trailerUrl: null,
-        };
-      });
-
-      // Interleave: movie, show, movie, show, ...
+      // ─── Interleave: movie, show, movie, show, ... ───────────────────────────────
       const interleaved = [];
       const maxLen = Math.max(movieItems.length, tvItems.length);
       for (let i = 0; i < maxLen; i++) {
@@ -224,6 +285,151 @@ class ComingSoonCard extends HTMLElement {
         errEl.style.display = 'block';
       }
     }
+  }
+
+  async _fetchTraktData(startDate) {
+    const clientId = this._config.trakt_api_key;
+    const accessToken = this._config.trakt_access_token;
+    const days = 90;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'trakt-api-key': clientId,
+      'trakt-api-version': '2',
+    };
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    const [moviesResult, showsResult] = await Promise.allSettled([
+      fetch(`https://api.trakt.tv/calendars/my/movies/${startDate}/${days}`, { headers }),
+      fetch(`https://api.trakt.tv/calendars/my/shows/${startDate}/${days}`, { headers }),
+    ]);
+
+    const movies = [];
+    const shows = [];
+
+    // Process movies
+    if (moviesResult.status === 'fulfilled' && moviesResult.value.ok) {
+      const data = await moviesResult.value.json();
+      // Fetch TMDB enrichment in parallel
+      const enriched = await Promise.allSettled(
+        (Array.isArray(data) ? data : []).map(async (entry) => {
+          const movie = entry.movie || {};
+          const tmdbId = movie.ids && movie.ids.tmdb ? movie.ids.tmdb : null;
+          let posterUrl = '';
+          let fanartUrl = '';
+          let genres = '';
+          if (tmdbId && this._config.tmdb_api_key) {
+            try {
+              const tmdbResp = await fetch(
+                `https://api.themoviedb.org/3/movie/${tmdbId}`,
+                { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+              );
+              if (tmdbResp.ok) {
+                const tmdbData = await tmdbResp.json();
+                if (tmdbData.poster_path) posterUrl = `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+                if (tmdbData.backdrop_path) fanartUrl = `https://image.tmdb.org/t/p/w1280${tmdbData.backdrop_path}`;
+                genres = (tmdbData.genres || []).map(g => g.name).join(' · ');
+              }
+            } catch (e) {
+              console.warn('Coming Soon Card: TMDB movie enrichment error', e);
+            }
+          }
+          return {
+            type: 'movie',
+            typeLabel: 'Movie',
+            title: movie.title || '',
+            year: movie.year || null,
+            subtitle: [movie.year, genres].filter(Boolean).join(' · '),
+            genres,
+            releaseDate: entry.released || null,
+            overview: '',
+            posterUrl,
+            fanartUrl,
+            tmdbId,
+            rating: null,
+            trailerUrl: null,
+          };
+        })
+      );
+      for (const r of enriched) {
+        if (r.status === 'fulfilled' && r.value.releaseDate) movies.push(r.value);
+      }
+    } else if (moviesResult.status === 'fulfilled') {
+      console.warn('Coming Soon Card: Trakt movies HTTP', moviesResult.value.status);
+    } else {
+      console.warn('Coming Soon Card: Trakt movies fetch error', moviesResult.reason);
+    }
+
+    // Process shows
+    if (showsResult.status === 'fulfilled' && showsResult.value.ok) {
+      const data = await showsResult.value.json();
+      // Dedupe: only first upcoming episode per show
+      const seenShows = new Set();
+      const uniqueEntries = (Array.isArray(data) ? data : []).filter(entry => {
+        const showTitle = (entry.show && entry.show.title) || '';
+        if (seenShows.has(showTitle)) return false;
+        seenShows.add(showTitle);
+        return true;
+      });
+      const enriched = await Promise.allSettled(
+        uniqueEntries.map(async (entry) => {
+          const show = entry.show || {};
+          const episode = entry.episode || {};
+          const tmdbId = show.ids && show.ids.tmdb ? show.ids.tmdb : null;
+          let posterUrl = '';
+          let fanartUrl = '';
+          if (tmdbId && this._config.tmdb_api_key) {
+            try {
+              const tmdbResp = await fetch(
+                `https://api.themoviedb.org/3/tv/${tmdbId}`,
+                { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+              );
+              if (tmdbResp.ok) {
+                const tmdbData = await tmdbResp.json();
+                if (tmdbData.poster_path) posterUrl = `https://image.tmdb.org/t/p/w500${tmdbData.poster_path}`;
+                if (tmdbData.backdrop_path) fanartUrl = `https://image.tmdb.org/t/p/w1280${tmdbData.backdrop_path}`;
+              }
+            } catch (e) {
+              console.warn('Coming Soon Card: TMDB show enrichment error', e);
+            }
+          }
+          const sNum = String(episode.season || 0).padStart(2, '0');
+          const eNum = String(episode.number || 0).padStart(2, '0');
+          const episodeLabel = `S${sNum}E${eNum}` + (episode.title ? ` · ${episode.title}` : '');
+          const releaseDate = entry.first_aired
+            ? entry.first_aired.split('T')[0]
+            : null;
+          return {
+            type: 'tv',
+            typeLabel: 'TV',
+            title: show.title || '',
+            subtitle: episodeLabel,
+            year: show.year || null,
+            releaseDate,
+            overview: '',
+            posterUrl,
+            fanartUrl,
+            tmdbId,
+            seriesTitle: show.title || '',
+            seasonNumber: episode.season || null,
+            episodeNumber: episode.number || null,
+            rating: null,
+            trailerUrl: null,
+          };
+        })
+      );
+      for (const r of enriched) {
+        if (r.status === 'fulfilled' && r.value.releaseDate) shows.push(r.value);
+      }
+    } else if (showsResult.status === 'fulfilled') {
+      console.warn('Coming Soon Card: Trakt shows HTTP', showsResult.value.status);
+    } else {
+      console.warn('Coming Soon Card: Trakt shows fetch error', showsResult.reason);
+    }
+
+    return { movies, shows };
   }
 
   _startCycle() {
@@ -565,6 +771,12 @@ class ComingSoonCard extends HTMLElement {
     const imageType = this._config.image_type || 'poster';
     const cardClasses = `card layout-${layout} image-${imageType}`;
 
+    // Apply theme
+    const themeKey = this._config.theme || 'auto';
+    const theme = THEMES[themeKey] || THEMES['auto'];
+    this.style.setProperty('--accent-primary', theme.primary);
+    this.style.setProperty('--accent-secondary', theme.secondary);
+
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -574,9 +786,8 @@ class ComingSoonCard extends HTMLElement {
           --text-primary: #f0f0f0;
           --text-secondary: #999;
           --text-dim: #666;
-          --accent-gold: #c9a73b;
-          --accent-movie: #c9a73b;
-          --accent-tv: #5b9bd5;
+          --accent-primary: ${theme.primary};
+          --accent-secondary: ${theme.secondary};
         }
 
         ha-card {
@@ -670,7 +881,7 @@ class ComingSoonCard extends HTMLElement {
           flex-shrink: 0;
           display: inline-block;
           vertical-align: middle;
-          fill: var(--accent-gold);
+          fill: var(--accent-primary);
         }
 
         .counter {
@@ -775,13 +986,13 @@ class ComingSoonCard extends HTMLElement {
         }
 
         .item-type.movie {
-          background: rgba(201, 167, 59, 0.15);
-          color: var(--accent-movie);
+          background: rgba(var(--accent-primary-rgb, 45, 212, 191), 0.15);
+          color: var(--accent-primary);
         }
 
         .item-type.tv {
-          background: rgba(91, 155, 213, 0.15);
-          color: var(--accent-tv);
+          background: rgba(var(--accent-secondary-rgb, 91, 155, 213), 0.15);
+          color: var(--accent-secondary);
         }
 
         /* Poster layout text styles (inside poster-overlay) */
@@ -815,7 +1026,7 @@ class ComingSoonCard extends HTMLElement {
         .poster-overlay .item-countdown {
           font-size: 14px;
           font-weight: 600;
-          color: var(--accent-gold);
+          color: var(--accent-primary);
         }
 
         .poster-overlay .meta-separator {
@@ -856,7 +1067,7 @@ class ComingSoonCard extends HTMLElement {
         .info .item-countdown {
           font-size: 14px;
           font-weight: 700;
-          color: var(--accent-gold);
+          color: var(--accent-primary);
         }
 
         .info .meta-separator {
@@ -897,23 +1108,23 @@ class ComingSoonCard extends HTMLElement {
         }
 
         .dot.movie {
-          background: rgba(201, 167, 59, 0.25);
+          background: rgba(var(--accent-primary-rgb, 45, 212, 191), 0.25);
         }
 
         .dot.tv {
-          background: rgba(91, 155, 213, 0.25);
+          background: rgba(var(--accent-secondary-rgb, 91, 155, 213), 0.25);
         }
 
         .dot.active.movie {
-          background: var(--accent-movie);
-          box-shadow: 0 0 6px rgba(201, 167, 59, 0.4);
+          background: var(--accent-primary);
+          box-shadow: 0 0 6px rgba(var(--accent-primary-rgb, 45, 212, 191), 0.4);
           width: 18px;
           border-radius: 3px;
         }
 
         .dot.active.tv {
-          background: var(--accent-tv);
-          box-shadow: 0 0 6px rgba(91, 155, 213, 0.4);
+          background: var(--accent-secondary);
+          box-shadow: 0 0 6px rgba(var(--accent-secondary-rgb, 91, 155, 213), 0.4);
           width: 18px;
           border-radius: 3px;
         }
@@ -1108,6 +1319,9 @@ class ComingSoonCard extends HTMLElement {
       fill_height: true,
       layout: 'poster',
       image_type: 'poster',
+      theme: 'auto',
+      trakt_api_key: null,
+      trakt_access_token: null,
     };
   }
 
@@ -1116,22 +1330,18 @@ class ComingSoonCard extends HTMLElement {
       schema: [
         {
           name: 'radarr_url',
-          required: true,
           selector: { text: {} },
         },
         {
           name: 'radarr_api_key',
-          required: true,
           selector: { text: { type: 'password' } },
         },
         {
           name: 'sonarr_url',
-          required: true,
           selector: { text: {} },
         },
         {
           name: 'sonarr_api_key',
-          required: true,
           selector: { text: { type: 'password' } },
         },
         {
@@ -1167,10 +1377,36 @@ class ComingSoonCard extends HTMLElement {
           selector: { text: { type: 'password' } },
         },
         {
+          name: 'days_offset',
+          selector: { number: { min: 0, max: 30, mode: 'box' } },
+        },
+        {
           name: 'trailer_mode',
           selector: { select: { options: [
             { value: 'popup', label: 'Popup (fullscreen)' },
             { value: 'inline', label: 'Inline (on card)' },
+          ]}},
+        },
+        {
+          name: 'trakt_api_key',
+          selector: { text: {} },
+        },
+        {
+          name: 'trakt_access_token',
+          selector: { text: { type: 'password' } },
+        },
+        {
+          name: 'theme',
+          selector: { select: { options: [
+            { value: 'auto', label: 'Auto (teal)' },
+            { value: 'plex', label: 'Plex (gold)' },
+            { value: 'kodi', label: 'Kodi (blue)' },
+            { value: 'jellyfin', label: 'Jellyfin (purple)' },
+            { value: 'emby', label: 'Emby (green)' },
+            { value: 'dark', label: 'Dark (grey)' },
+            { value: 'midnight', label: 'Midnight (deep blue)' },
+            { value: 'sunset', label: 'Sunset (orange)' },
+            { value: 'forest', label: 'Forest (green)' },
           ]}},
         },
         {
@@ -1213,7 +1449,11 @@ class ComingSoonCard extends HTMLElement {
           cycle_interval: 'Cycle Interval',
           title: 'Card Title',
           tmdb_api_key: 'TMDB API Key (for trailers)',
+          days_offset: 'Days Offset',
           trailer_mode: 'Trailer Mode',
+          trakt_api_key: 'Trakt Client ID',
+          trakt_access_token: 'Trakt Access Token',
+          theme: 'Theme',
           fill_height: 'Fill Container Height',
           card_height: 'Card Height',
           layout: 'Layout',
@@ -1228,7 +1468,10 @@ class ComingSoonCard extends HTMLElement {
           sonarr_url: 'e.g. http://192.168.1.100:8989',
           sonarr_api_key: 'Found in Sonarr → Settings → General → API Key',
           tmdb_api_key: 'Optional — enables trailer button. Get a free key at themoviedb.org',
+          days_offset: 'Include items from this many days in the past (0 = only future releases)',
           trailer_mode: 'Popup opens a fullscreen overlay. Inline plays on top of the card.',
+          trakt_api_key: 'Optional — Client ID from trakt.tv/oauth/applications. Used to fetch your Trakt watchlist.',
+          trakt_access_token: 'Optional — OAuth access token for private Trakt calendar access.',
           fill_height: 'Enable if your card has proper height from the layout. Disable if collapsed.',
           card_height: 'Height in pixels when Fill Container Height is off. Default: 300',
           layout: 'Poster: centred design with info on the poster. Detailed: poster on the left, text on the right.',
