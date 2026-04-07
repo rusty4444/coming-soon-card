@@ -315,7 +315,7 @@ class ComingSoonCard extends HTMLElement {
       const showTrailerBtn = (url) => {
         if (url && this._items[this._currentIndex] === item) {
           trailerBtn.classList.add('visible');
-          trailerBtn.onclick = (e) => { e.stopPropagation(); this._playTrailer(url); };
+          trailerBtn.onclick = (e) => { e.stopPropagation(); this._config.trailer_mode === 'inline' ? this._playTrailerInline(url) : this._playTrailer(url); };
         }
       };
 
@@ -417,6 +417,69 @@ class ComingSoonCard extends HTMLElement {
       console.warn('Coming Soon Card: TV title trailer fetch error', err);
       this._trailerCache[cacheKey] = null;
       return null;
+    }
+  }
+
+  _playTrailerInline(url) {
+    const ytId = this._getYouTubeId(url);
+    if (!ytId) return;
+
+    if (this._cycleTimer) { clearInterval(this._cycleTimer); this._cycleTimer = null; }
+
+    const root = this.shadowRoot;
+    const mainEl = root.querySelector('.main');
+    const dotsEl = root.querySelector('.dots');
+    if (mainEl) mainEl.style.display = 'none';
+    if (dotsEl) dotsEl.style.display = 'none';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'cs-trailer-overlay';
+    const cardRect = this.getBoundingClientRect();
+    const minHeight = Math.max(cardRect.height, Math.round(cardRect.width * 9 / 16));
+    overlay.style.cssText = `position:fixed;top:${cardRect.top}px;left:${cardRect.left}px;width:${cardRect.width}px;height:${minHeight}px;background:#000;z-index:99999;display:flex;align-items:center;justify-content:center;border-radius:12px;overflow:hidden;`;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;';
+
+    const playerDiv = document.createElement('div');
+    playerDiv.id = 'cs-yt-inline-' + Date.now();
+    playerDiv.style.cssText = 'width:100%;height:100%;';
+    wrapper.appendChild(playerDiv);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '\u2715';
+    closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100001;';
+    wrapper.appendChild(closeBtn);
+
+    overlay.appendChild(wrapper);
+    document.body.appendChild(overlay);
+
+    const self = this;
+    const closeTrailer = () => {
+      if (self._ytPlayer) { try { self._ytPlayer.destroy(); } catch (e) {} self._ytPlayer = null; }
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (mainEl) mainEl.style.display = '';
+      if (dotsEl) dotsEl.style.display = '';
+      self._startCycle();
+    };
+
+    closeBtn.onclick = (e) => { e.stopPropagation(); closeTrailer(); };
+
+    const initPlayer = () => {
+      self._ytPlayer = new YT.Player(playerDiv.id, {
+        width: '100%', height: '100%', videoId: ytId,
+        playerVars: { autoplay: 1, controls: 1, modestbranding: 1, rel: 0, playsinline: 1, enablejsapi: 1, origin: window.location.origin },
+        events: { onStateChange: (event) => { if (event.data === 0) closeTrailer(); } },
+      });
+    };
+
+    if (window.YT && window.YT.Player) { initPlayer(); }
+    else {
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+      }
+      const check = setInterval(() => { if (window.YT && window.YT.Player) { clearInterval(check); initPlayer(); } }, 100);
+      setTimeout(() => clearInterval(check), 10000);
     }
   }
 
@@ -1104,6 +1167,13 @@ class ComingSoonCard extends HTMLElement {
           selector: { text: { type: 'password' } },
         },
         {
+          name: 'trailer_mode',
+          selector: { select: { options: [
+            { value: 'popup', label: 'Popup (fullscreen)' },
+            { value: 'inline', label: 'Inline (on card)' },
+          ]}},
+        },
+        {
           name: 'fill_height',
           selector: { boolean: {} },
         },
@@ -1143,6 +1213,7 @@ class ComingSoonCard extends HTMLElement {
           cycle_interval: 'Cycle Interval',
           title: 'Card Title',
           tmdb_api_key: 'TMDB API Key (for trailers)',
+          trailer_mode: 'Trailer Mode',
           fill_height: 'Fill Container Height',
           card_height: 'Card Height',
           layout: 'Layout',
@@ -1157,6 +1228,7 @@ class ComingSoonCard extends HTMLElement {
           sonarr_url: 'e.g. http://192.168.1.100:8989',
           sonarr_api_key: 'Found in Sonarr → Settings → General → API Key',
           tmdb_api_key: 'Optional — enables trailer button. Get a free key at themoviedb.org',
+          trailer_mode: 'Popup opens a fullscreen overlay. Inline plays on top of the card.',
           fill_height: 'Enable if your card has proper height from the layout. Disable if collapsed.',
           card_height: 'Height in pixels when Fill Container Height is off. Default: 300',
           layout: 'Poster: centred design with info on the poster. Detailed: poster on the left, text on the right.',

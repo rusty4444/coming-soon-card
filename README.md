@@ -122,6 +122,7 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN  # Optional: enables trailer button
 | `layout` | string | `"poster"` | `poster` (centred poster with overlay) or `detailed` (poster + info side-by-side) |
 | `image_type` | string | `"poster"` | `poster` (portrait poster art) or `fanart` (landscape key art/fanart) |
 | `tmdb_api_key` | string | Empty (trailers disabled) | TMDB Read Access Token — enables the trailer button |
+| `trailer_mode` | string | `"popup"` | `popup` (fullscreen overlay) or `inline` (plays on top of the card) |
 | `fill_height` | boolean | `true` | When enabled, card stretches to fill its container. Disable if the card appears collapsed |
 | `card_height` | number | `300` | Card height in pixels (only used when `fill_height` is `false`) |
 
@@ -177,4 +178,5 @@ The card fetches upcoming items from Radarr and Sonarr's calendar APIs (next 90 
 
 ## Credits
 
-Built for the Home Assistant community.
+- Trailer data from [The Movie Database (TMDB)](https://www.themoviedb.org/)
+- Built for the Home Assistant community
