@@ -177,4 +177,7 @@ The card fetches upcoming items from Radarr and Sonarr's calendar APIs (next 90 
 
 ## Credits
 
+Built by Sam Russell - AI Used in development.
+YouTube embed fix based on the approach from loryanstrant/ha-youtubevideocard — YouTube IFrame API for Home Assistant
+Trailer data from The Movie Database (TMDB)
 Built for the Home Assistant community.
