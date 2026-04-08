@@ -1,5 +1,13 @@
 # Coming Soon Card
 
+<p align="center">
+  <a href="https://buymeacoffee.com/rusty4" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+  </a>
+</p>
+
+
+
 A cinematic Home Assistant card that displays upcoming movies and TV episodes from **Radarr/Sonarr** and/or **Trakt**. Multiple layout options, themes, countdown timers, swipe navigation, and trailer playback.
 
 <p align="center">
