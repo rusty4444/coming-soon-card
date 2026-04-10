@@ -85,15 +85,28 @@ class ComingSoonCard extends HTMLElement {
   }
 
   _formatDate(dateStr) {
-    // dateStr: "2026-04-08" or ISO string
     const d = new Date(dateStr);
     if (isNaN(d)) return '';
+    const fmt = this._config.date_format || 'ordinal';
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
                     'July', 'August', 'September', 'October', 'November', 'December'];
-    const day = this._getOrdinal(d.getUTCDate());
-    const month = months[d.getUTCMonth()];
+    const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = d.getUTCDate();
+    const month = d.getUTCMonth();
     const year = d.getUTCFullYear();
-    return `${day} of ${month} ${year}`;
+    const dd = String(day).padStart(2, '0');
+    const mm = String(month + 1).padStart(2, '0');
+    switch (fmt) {
+      case 'us':        return `${monthsShort[month]} ${dd}, ${year}`;       // Apr 10, 2026
+      case 'us_long':   return `${months[month]} ${day}, ${year}`;            // April 10, 2026
+      case 'eu':        return `${dd}/${mm}/${year}`;                         // 10/04/2026
+      case 'au':        return `${dd}/${mm}/${year}`;                         // 10/04/2026
+      case 'iso':       return `${year}-${mm}-${dd}`;                         // 2026-04-10
+      case 'short':     return `${dd} ${monthsShort[month]} ${year}`;         // 10 Apr 2026
+      case 'ordinal':   // 10th of April 2026 (default)
+      default:          return `${this._getOrdinal(day)} of ${months[month]} ${year}`;
+    }
   }
 
   _formatCountdown(dateStr) {
@@ -1381,6 +1394,17 @@ class ComingSoonCard extends HTMLElement {
           selector: { number: { min: 0, max: 30, mode: 'box' } },
         },
         {
+          name: 'date_format',
+          selector: { select: { options: [
+            { value: 'ordinal',  label: '10th of April 2026 (default)' },
+            { value: 'short',    label: '10 Apr 2026' },
+            { value: 'us',      label: 'Apr 10, 2026 (US short)' },
+            { value: 'us_long', label: 'April 10, 2026 (US long)' },
+            { value: 'eu',      label: '10/04/2026 (EU / AU)' },
+            { value: 'iso',     label: '2026-04-10 (ISO 8601)' },
+          ]}},
+        },
+        {
           name: 'trailer_mode',
           selector: { select: { options: [
             { value: 'popup', label: 'Popup (fullscreen)' },
@@ -1450,6 +1474,7 @@ class ComingSoonCard extends HTMLElement {
           title: 'Card Title',
           tmdb_api_key: 'TMDB API Key (for trailers)',
           days_offset: 'Days Offset',
+          date_format: 'Date Format',
           trailer_mode: 'Trailer Mode',
           trakt_api_key: 'Trakt Client ID',
           trakt_access_token: 'Trakt Access Token',
@@ -1469,6 +1494,7 @@ class ComingSoonCard extends HTMLElement {
           sonarr_api_key: 'Found in Sonarr → Settings → General → API Key',
           tmdb_api_key: 'Optional — enables trailer button. Get a free key at themoviedb.org',
           days_offset: 'Include items from this many days in the past (0 = only future releases)',
+          date_format: 'Format used for the release/air date displayed on the card',
           trailer_mode: 'Popup opens a fullscreen overlay. Inline plays on top of the card.',
           trakt_api_key: 'Optional — Client ID from trakt.tv/oauth/applications. Used to fetch your Trakt watchlist.',
           trakt_access_token: 'Optional — OAuth access token for private Trakt calendar access.',

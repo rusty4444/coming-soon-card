@@ -170,11 +170,23 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN
 | `image_type` | string | `"poster"` | `poster` (portrait art) or `fanart` (landscape key art) |
 | `days_offset` | number | `0` | Include items released up to this many days ago (0 = future only) |
 | `tmdb_api_key` | string | — | TMDB Read Access Token — enables posters (for Trakt) and trailers |
+| `date_format` | string | `"ordinal"` | Date format for release/air dates — see table below |
 | `trailer_mode` | string | `"popup"` | `popup` (fullscreen overlay) or `inline` (plays on top of card) |
 | `fill_height` | boolean | `true` | Card stretches to fill container. Disable if card appears collapsed |
 | `card_height` | number | `300` | Height in pixels when `fill_height` is `false` |
 
 At least one data source is required — either Radarr/Sonarr, Trakt, or both.
+
+### Date Formats
+
+| Value | Example | Description |
+|-------|---------|-------------|
+| `ordinal` | 10th of April 2026 | Default — most recognisable worldwide |
+| `short` | 10 Apr 2026 | Compact international format |
+| `us` | Apr 10, 2026 | US short format |
+| `us_long` | April 10, 2026 | US long format |
+| `eu` | 10/04/2026 | EU / Australian numeric format |
+| `iso` | 2026-04-10 | ISO 8601 |
 
 ---
 
