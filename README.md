@@ -257,7 +257,7 @@ The `days_offset` option lets you include items that came out recently but haven
 **TMDB** (for trailers and Trakt poster images):
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org/signup)
 2. Go to [API Settings](https://www.themoviedb.org/settings/api)
-3. Copy the **Read Access Token** (the long `eyJ...` token, not the short API Key)
+3. Copy either the **API Read Access Token** (the long `eyJ...` token — recommended) **or** the **API Key (v3 auth)** (the 32-character hex string). From v1.2.2 the card auto-detects which one you've supplied.
 
 ---
 

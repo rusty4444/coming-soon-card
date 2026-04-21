@@ -336,8 +336,7 @@ class ComingSoonCard extends HTMLElement {
           if (tmdbId && this._config.tmdb_api_key) {
             try {
               const tmdbResp = await fetch(
-                `https://api.themoviedb.org/3/movie/${tmdbId}`,
-                { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+                ...this._tmdbFetchArgs(`https://api.themoviedb.org/3/movie/${tmdbId}`)
               );
               if (tmdbResp.ok) {
                 const tmdbData = await tmdbResp.json();
@@ -396,8 +395,7 @@ class ComingSoonCard extends HTMLElement {
           if (tmdbId && this._config.tmdb_api_key) {
             try {
               const tmdbResp = await fetch(
-                `https://api.themoviedb.org/3/tv/${tmdbId}`,
-                { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+                ...this._tmdbFetchArgs(`https://api.themoviedb.org/3/tv/${tmdbId}`)
               );
               if (tmdbResp.ok) {
                 const tmdbData = await tmdbResp.json();
@@ -567,13 +565,39 @@ class ComingSoonCard extends HTMLElement {
     return match ? match[1] : null;
   }
 
+  // Detect TMDB token type and return appropriate fetch URL + options.
+  // Read Access Token (JWT starting 'eyJ') → Bearer header.
+  // v3 API Key (32-char hex) → ?api_key= query param.
+  // Also supports v4 tokens (JWT) explicitly.
+  _tmdbFetchArgs(url) {
+    const key = (this._config.tmdb_api_key || '').trim();
+    const isJwt = key.startsWith('eyJ') && key.includes('.');
+    const isV3Hex = /^[0-9a-f]{32}$/i.test(key);
+    if (isJwt) {
+      return [url, { headers: { Accept: 'application/json', Authorization: `Bearer ${key}` } }];
+    }
+    if (isV3Hex) {
+      const sep = url.includes('?') ? '&' : '?';
+      return [`${url}${sep}api_key=${encodeURIComponent(key)}`, { headers: { Accept: 'application/json' } }];
+    }
+    // Unknown format — log once and still try Bearer (best guess).
+    if (!this._warnedTmdbFormat) {
+      this._warnedTmdbFormat = true;
+      console.warn(
+        'Coming Soon Card: tmdb_api_key does not look like a Read Access Token (eyJ...) ' +
+        'or a v3 API Key (32-char hex). Requests may fail with 401. ' +
+        'See https://www.themoviedb.org/settings/api — copy the long "API Read Access Token".'
+      );
+    }
+    return [url, { headers: { Accept: 'application/json', Authorization: `Bearer ${key}` } }];
+  }
+
   async _fetchMovieTrailer(tmdbId) {
     const cacheKey = `movie_${tmdbId}`;
     if (cacheKey in this._trailerCache) return this._trailerCache[cacheKey];
     try {
       const resp = await fetch(
-        `https://api.themoviedb.org/3/movie/${tmdbId}/videos?language=en-US`,
-        { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+        ...this._tmdbFetchArgs(`https://api.themoviedb.org/3/movie/${tmdbId}/videos?language=en-US`)
       );
       if (!resp.ok) throw new Error(`TMDB HTTP ${resp.status}`);
       const data = await resp.json();
@@ -596,8 +620,7 @@ class ComingSoonCard extends HTMLElement {
     if (cacheKey in this._trailerCache) return this._trailerCache[cacheKey];
     try {
       const resp = await fetch(
-        `https://api.themoviedb.org/3/tv/${tmdbId}/videos?language=en-US`,
-        { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+        ...this._tmdbFetchArgs(`https://api.themoviedb.org/3/tv/${tmdbId}/videos?language=en-US`)
       );
       if (!resp.ok) throw new Error(`TMDB HTTP ${resp.status}`);
       const data = await resp.json();
@@ -621,8 +644,7 @@ class ComingSoonCard extends HTMLElement {
     try {
       // Search TMDB for the show
       const searchResp = await fetch(
-        `https://api.themoviedb.org/3/search/tv?query=${encodeURIComponent(title)}&language=en-US`,
-        { headers: { Accept: 'application/json', Authorization: `Bearer ${this._config.tmdb_api_key}` } }
+        ...this._tmdbFetchArgs(`https://api.themoviedb.org/3/search/tv?query=${encodeURIComponent(title)}&language=en-US`)
       );
       if (!searchResp.ok) throw new Error(`TMDB search HTTP ${searchResp.status}`);
       const searchData = await searchResp.json();
