@@ -187,8 +187,13 @@ class ComingSoonCard extends HTMLElement {
             .filter(m => !m.hasFile && m.digitalRelease && new Date(m.digitalRelease) >= offsetStart)
             .sort((a, b) => new Date(a.digitalRelease) - new Date(b.digitalRelease))
             .slice(0, this._config.movies_count);
+          const radarrBaseUrl = this._config.radarr_url.replace(/\/$/, '');
+          const radarrKey = this._config.radarr_api_key;
           movieItems = radarrItems.map(m => {
             const genres = (m.genres || []).join(' · ');
+            const mid = m.id;
+            const localPoster = mid ? `${radarrBaseUrl}/api/v3/MediaCover/${mid}/poster.jpg?apikey=${encodeURIComponent(radarrKey)}` : '';
+            const localFanart = mid ? `${radarrBaseUrl}/api/v3/MediaCover/${mid}/fanart.jpg?apikey=${encodeURIComponent(radarrKey)}` : '';
             return {
               type: 'movie',
               typeLabel: 'Movie',
@@ -200,6 +205,8 @@ class ComingSoonCard extends HTMLElement {
               overview: m.overview || '',
               posterUrl: this._getPosterUrl(m.images),
               fanartUrl: this._getFanartUrl(m.images),
+              localPosterUrl: localPoster,
+              localFanartUrl: localFanart,
               tmdbId: m.tmdbId || null,
               rating: m.ratings && m.ratings.value ? m.ratings.value : null,
               trailerUrl: null,
@@ -224,12 +231,17 @@ class ComingSoonCard extends HTMLElement {
             seenSeries.add(seriesId);
             return true;
           }).slice(0, this._config.shows_count);
+          const sonarrBaseUrl = this._config.sonarr_url.replace(/\/$/, '');
+          const sonarrKey = this._config.sonarr_api_key;
           tvItems = sonarrItems.map(ep => {
             const series = ep.series || {};
             const sNum = String(ep.seasonNumber || 0).padStart(2, '0');
             const eNum = String(ep.episodeNumber || 0).padStart(2, '0');
             const episodeLabel = `S${sNum}E${eNum}` + (ep.title ? ` · ${ep.title}` : '');
             const tmdbId = series.tmdbId || null;
+            const sid = series.id || ep.seriesId;
+            const localPoster = sid ? `${sonarrBaseUrl}/api/v3/MediaCover/${sid}/poster.jpg?apikey=${encodeURIComponent(sonarrKey)}` : '';
+            const localFanart = sid ? `${sonarrBaseUrl}/api/v3/MediaCover/${sid}/fanart.jpg?apikey=${encodeURIComponent(sonarrKey)}` : '';
             return {
               type: 'tv',
               typeLabel: 'TV',
@@ -239,6 +251,8 @@ class ComingSoonCard extends HTMLElement {
               overview: ep.overview || '',
               posterUrl: this._getPosterUrl(series.images),
               fanartUrl: this._getFanartUrl(series.images),
+              localPosterUrl: localPoster,
+              localFanartUrl: localFanart,
               tmdbId,
               seriesTitle: series.title || '',
               seasonNumber: ep.seasonNumber || null,
@@ -458,31 +472,52 @@ class ComingSoonCard extends HTMLElement {
     const item = this._items[this._currentIndex];
     const root = this.shadowRoot;
 
-    // Background art transition
+    // Background art transition (with local fallback if remote fails)
     const bgEl = root.querySelector('.bg-art');
     const bgNew = root.querySelector('.bg-art-next');
-    if (bgNew && item.fanartUrl) {
-      bgNew.style.backgroundImage = `url(${item.fanartUrl})`;
-      bgNew.classList.add('active');
-      setTimeout(() => {
-        if (bgEl) bgEl.style.backgroundImage = bgNew.style.backgroundImage;
-        bgNew.classList.remove('active');
-      }, 800);
-    } else if (bgEl && item.fanartUrl) {
-      bgEl.style.backgroundImage = `url(${item.fanartUrl})`;
+    const setBackground = (url) => {
+      if (bgNew) {
+        bgNew.style.backgroundImage = `url(${url})`;
+        bgNew.classList.add('active');
+        setTimeout(() => {
+          if (bgEl) bgEl.style.backgroundImage = bgNew.style.backgroundImage;
+          bgNew.classList.remove('active');
+        }, 800);
+      } else if (bgEl) {
+        bgEl.style.backgroundImage = `url(${url})`;
+      }
+    };
+    if (item.fanartUrl) {
+      const probe = new Image();
+      probe.onload = () => setBackground(item.fanartUrl);
+      probe.onerror = () => {
+        if (item.localFanartUrl) setBackground(item.localFanartUrl);
+      };
+      probe.src = item.fanartUrl;
+    } else if (item.localFanartUrl) {
+      setBackground(item.localFanartUrl);
     }
 
-    // Poster — choose image based on image_type config
+    // Poster — choose image based on image_type config (with local fallback)
     const useImage = this._config.image_type === 'fanart' ? item.fanartUrl : item.posterUrl;
+    const fallbackImage = this._config.image_type === 'fanart' ? item.localFanartUrl : item.localPosterUrl;
     const posterEl = root.querySelector('.poster');
-    if (posterEl && useImage) {
+    if (posterEl && (useImage || fallbackImage)) {
       posterEl.style.opacity = '0';
-      const img = new Image();
-      img.onload = () => {
-        posterEl.src = img.src;
-        posterEl.style.opacity = '1';
+      const loadPoster = (src, isRetry = false) => {
+        const img = new Image();
+        img.onload = () => {
+          posterEl.src = img.src;
+          posterEl.style.opacity = '1';
+        };
+        img.onerror = () => {
+          if (!isRetry && fallbackImage && src !== fallbackImage) {
+            loadPoster(fallbackImage, true);
+          }
+        };
+        img.src = src;
       };
-      img.src = useImage;
+      loadPoster(useImage || fallbackImage);
     }
 
     // Text elements — use querySelectorAll so both poster-overlay and info panel copies get updated

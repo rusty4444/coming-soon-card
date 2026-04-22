@@ -257,7 +257,9 @@ The `days_offset` option lets you include items that came out recently but haven
 **TMDB** (for trailers and Trakt poster images):
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org/signup)
 2. Go to [API Settings](https://www.themoviedb.org/settings/api)
-3. Copy either the **API Read Access Token** (the long `eyJ...` token — recommended) **or** the **API Key (v3 auth)** (the 32-character hex string). From v1.2.2 the card auto-detects which one you've supplied.
+3. Copy either the **API Read Access Token** (the long `eyJ...` token - recommended) **or** the **API Key (v3 auth)** (the 32-character hex string). From v1.2.2 the card auto-detects which one you've supplied.
+
+> From v1.2.3, if the remote poster/fanart URL supplied by Radarr or Sonarr cannot be reached (e.g. blocked by Pi-hole, firewall, or unreachable on the client network), the card will automatically fall back to Radarr's/Sonarr's own cached copy at `/api/v3/MediaCover/{id}/poster.jpg`. No action required - it just works.
 
 ---
 
