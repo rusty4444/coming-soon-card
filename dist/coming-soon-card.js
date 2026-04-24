@@ -1167,6 +1167,7 @@ class ComingSoonCard extends HTMLElement {
           gap: 6px;
           padding-top: 16px;
           flex-shrink: 0;
+          width: 100%;
         }
 
         .dot {
