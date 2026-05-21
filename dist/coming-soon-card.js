@@ -55,6 +55,7 @@ class ComingSoonCard extends HTMLElement {
       layout: config.layout || 'poster',
       image_type: config.image_type || 'poster',
       theme: config.theme || 'auto',
+      show_shimmer: config.show_shimmer || false,
       trakt_api_key: config.trakt_api_key || null,
       trakt_access_token: config.trakt_access_token || null,
 
@@ -1002,7 +1003,22 @@ class ComingSoonCard extends HTMLElement {
         }
 
         .poster-shimmer {
-          display: none;
+          ${cfg.show_shimmer ? `
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255,255,255,0.03) 50%,
+            transparent 100%
+          );
+          animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }` : 'display: none;'}
         }
 
         /* Info panel (detailed layout) */
@@ -1380,6 +1396,7 @@ class ComingSoonCard extends HTMLElement {
       theme: 'auto',
       trakt_api_key: null,
       trakt_access_token: null,
+      show_shimmer: false,
     };
   }
 
@@ -1506,6 +1523,10 @@ class ComingSoonCard extends HTMLElement {
             },
           ],
         },
+        {
+          name: 'show_shimmer',
+          selector: { boolean: {} },
+        },
       ],
       computeLabel: (schema) => {
         const labels = {
@@ -1528,6 +1549,7 @@ class ComingSoonCard extends HTMLElement {
           card_height: 'Card Height',
           layout: 'Layout',
           image_type: 'Image Type',
+          show_shimmer: 'Poster Shimmer Animation',
         };
         return labels[schema.name] || schema.name;
       },
@@ -1547,6 +1569,7 @@ class ComingSoonCard extends HTMLElement {
           card_height: 'Height in pixels when Fill Container Height is off. Default: 300',
           layout: 'Poster: centred design with info on the poster. Detailed: poster on the left, text on the right.',
           image_type: 'Poster: use the cover art. Fanart: use the backdrop/key art (landscape).',
+          show_shimmer: 'Adds a glossy sweep animation across poster art. Off by default.',
         };
         return helpers[schema.name] || undefined;
       },
