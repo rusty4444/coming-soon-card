@@ -1002,20 +1002,7 @@ class ComingSoonCard extends HTMLElement {
         }
 
         .poster-shimmer {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.03) 50%,
-            transparent 100%
-          );
-          animation: shimmer 2s infinite;
-        }
-
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
+          display: none;
         }
 
         /* Info panel (detailed layout) */
