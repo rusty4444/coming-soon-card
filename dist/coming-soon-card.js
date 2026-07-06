@@ -1003,7 +1003,7 @@ class ComingSoonCard extends HTMLElement {
         }
 
         .poster-shimmer {
-          ${cfg.show_shimmer ? `
+          ${this._config.show_shimmer ? `
           position: absolute;
           inset: 0;
           background: linear-gradient(
