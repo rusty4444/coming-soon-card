@@ -58,6 +58,10 @@ class ComingSoonCard extends HTMLElement {
       show_shimmer: config.show_shimmer || false,
       trakt_api_key: config.trakt_api_key || null,
       trakt_access_token: config.trakt_access_token || null,
+      show_trailer_button: config.show_trailer_button !== undefined ? config.show_trailer_button : true,
+      show_navigation: config.show_navigation || false,
+      loop_carousel: config.loop_carousel !== undefined ? config.loop_carousel : true,
+      background_mode: config.background_mode || 'artwork',
 
       ...config,
     };
@@ -463,6 +467,7 @@ class ComingSoonCard extends HTMLElement {
     if (this._items.length <= 1) return;
 
     this._cycleTimer = setInterval(() => {
+      if (this._config.loop_carousel === false && this._currentIndex >= this._items.length - 1) return;
       this._currentIndex = (this._currentIndex + 1) % this._items.length;
       this._updateDisplay();
     }, this._config.cycle_interval * 1000);
@@ -558,6 +563,9 @@ class ComingSoonCard extends HTMLElement {
     if (counterEl) {
       counterEl.textContent = `${this._currentIndex + 1} / ${this._items.length}`;
     }
+
+    // Update nav button states for non-looping carousel
+    this._updateNavButtonStates();
 
     // Trailer button — lazy fetch
     const trailerBtn = root.querySelector('.trailer-btn');
@@ -840,7 +848,10 @@ class ComingSoonCard extends HTMLElement {
     const title = this._config.title;
     const layout = this._config.layout || 'poster';
     const imageType = this._config.image_type || 'poster';
-    const cardClasses = `card layout-${layout} image-${imageType}`;
+    const bgMode = this._config.background_mode || 'artwork';
+    const showTrailer = this._config.show_trailer_button !== false;
+    const showNav = this._config.show_navigation === true;
+    const cardClasses = `card layout-${layout} image-${imageType} bg-${bgMode}`;
 
     // Apply theme
     const themeKey = this._config.theme || 'auto';
@@ -914,6 +925,40 @@ class ComingSoonCard extends HTMLElement {
             rgba(0,0,0,0.7) 100%
           );
         }
+
+        /* Background modes */
+        .bg-transparent .bg-art,
+        .bg-transparent .bg-art-next,
+        .bg-transparent .bg-overlay { display: none; }
+        .bg-theme .bg-art,
+        .bg-theme .bg-art-next,
+        .bg-theme .bg-overlay { display: none; }
+        .bg-theme ha-card { background: var(--ha-card-background, var(--card-background-color, var(--card-bg))) !important; }
+
+        /* Nav buttons */
+        .nav-btn {
+          display: none;
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 10;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: rgba(0,0,0,0.55);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: #ccc;
+          font-size: 18px;
+          cursor: pointer;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+        }
+        .nav-btn:hover { background: rgba(0,0,0,0.8); color: #fff; }
+        .show-nav .nav-btn { display: flex; }
+        .nav-prev { left: 8px; }
+        .nav-next { right: 8px; }
+        .nav-btn:disabled { opacity: 0.3; cursor: default; }
 
         /* Content */
         .content {
@@ -1273,17 +1318,20 @@ class ComingSoonCard extends HTMLElement {
                 </svg>
                 ${title}
               </span>
+              ${showTrailer ? `
               <button class="trailer-btn">
                 <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 Trailer
               </button>
+              ` : ''}
               <span class="counter"></span>
             </div>
             ` : ''}
 
             <div class="error-msg"></div>
 
-            <div class="main">
+            <div class="main ${showNav ? 'show-nav' : ''}">
+              ${showNav ? `<button class="nav-btn nav-prev" ${this._config.loop_carousel === false ? 'disabled' : ''}>&#9664;</button>` : ''}
               <div class="poster-wrap">
                 <img class="poster" src="" alt="">
                 <div class="poster-shimmer"></div>
@@ -1311,6 +1359,8 @@ class ComingSoonCard extends HTMLElement {
                 </div>
                 <div class="item-summary"></div>
               </div>
+            </div>
+            ${showNav ? `<button class="nav-btn nav-next">&#9654;</button>` : ''}
             </div>
 
             <div class="dots"></div>
@@ -1358,13 +1408,31 @@ class ComingSoonCard extends HTMLElement {
     });
 
     card.addEventListener('mouseleave', () => { this._mouseDown = false; });
+
+    // Nav button click handlers
+    const prevBtn = this.shadowRoot.querySelector('.nav-prev');
+    const nextBtn = this.shadowRoot.querySelector('.nav-next');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._navigatePrev();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._navigateNext();
+      });
+    }
   }
 
   _handleSwipe(dx, dy, dt) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) >= 50 && dt < 500) {
       if (dx < 0) {
+        if (this._config.loop_carousel === false && this._currentIndex >= this._items.length - 1) return;
         this._currentIndex = (this._currentIndex + 1) % this._items.length;
       } else {
+        if (this._config.loop_carousel === false && this._currentIndex <= 0) return;
         this._currentIndex = (this._currentIndex - 1 + this._items.length) % this._items.length;
       }
       this._updateDisplay();
@@ -1374,6 +1442,30 @@ class ComingSoonCard extends HTMLElement {
         this._startCycle();
       }
     }
+  }
+
+  _navigatePrev() {
+    if (this._config.loop_carousel === false && this._currentIndex <= 0) return;
+    this._currentIndex = (this._currentIndex - 1 + this._items.length) % this._items.length;
+    this._updateDisplay();
+    this._updateNavButtonStates();
+    if (this._cycleTimer) { clearInterval(this._cycleTimer); this._startCycle(); }
+  }
+
+  _navigateNext() {
+    if (this._config.loop_carousel === false && this._currentIndex >= this._items.length - 1) return;
+    this._currentIndex = (this._currentIndex + 1) % this._items.length;
+    this._updateDisplay();
+    this._updateNavButtonStates();
+    if (this._cycleTimer) { clearInterval(this._cycleTimer); this._startCycle(); }
+  }
+
+  _updateNavButtonStates() {
+    if (!this._config.show_navigation || this._config.loop_carousel !== false) return;
+    const prevBtn = this.shadowRoot.querySelector('.nav-prev');
+    const nextBtn = this.shadowRoot.querySelector('.nav-next');
+    if (prevBtn) prevBtn.disabled = this._currentIndex <= 0;
+    if (nextBtn) nextBtn.disabled = this._currentIndex >= this._items.length - 1;
   }
 
   getCardSize() {
@@ -1397,6 +1489,10 @@ class ComingSoonCard extends HTMLElement {
       trakt_api_key: null,
       trakt_access_token: null,
       show_shimmer: false,
+      show_trailer_button: true,
+      show_navigation: false,
+      loop_carousel: true,
+      background_mode: 'artwork',
     };
   }
 
@@ -1527,6 +1623,26 @@ class ComingSoonCard extends HTMLElement {
           name: 'show_shimmer',
           selector: { boolean: {} },
         },
+        {
+          name: 'show_trailer_button',
+          selector: { boolean: {} },
+        },
+        {
+          name: 'show_navigation',
+          selector: { boolean: {} },
+        },
+        {
+          name: 'loop_carousel',
+          selector: { boolean: {} },
+        },
+        {
+          name: 'background_mode',
+          selector: { select: { options: [
+            { value: 'artwork', label: 'Artwork (blurred fanart)' },
+            { value: 'theme', label: 'Theme (HA card background)' },
+            { value: 'transparent', label: 'Transparent' },
+          ]}},
+        },
       ],
       computeLabel: (schema) => {
         const labels = {
@@ -1550,6 +1666,10 @@ class ComingSoonCard extends HTMLElement {
           layout: 'Layout',
           image_type: 'Image Type',
           show_shimmer: 'Poster Shimmer Animation',
+          show_trailer_button: 'Show Trailer Button',
+          show_navigation: 'Show Navigation Buttons',
+          loop_carousel: 'Loop Carousel',
+          background_mode: 'Background Mode',
         };
         return labels[schema.name] || schema.name;
       },
@@ -1570,6 +1690,10 @@ class ComingSoonCard extends HTMLElement {
           layout: 'Poster: centred design with info on the poster. Detailed: poster on the left, text on the right.',
           image_type: 'Poster: use the cover art. Fanart: use the backdrop/key art (landscape).',
           show_shimmer: 'Adds a glossy sweep animation across poster art. Off by default.',
+          show_trailer_button: 'Show the trailer button in the card header. On by default.',
+          show_navigation: 'Show prev/next arrow buttons for manual navigation. Off by default.',
+          loop_carousel: 'Cycle back to the first item after the last. On by default. Disable for manual-only navigation.',
+          background_mode: 'Artwork: blurred fanart background (default). Theme: use HA card background. Transparent: no background.',
         };
         return helpers[schema.name] || undefined;
       },
