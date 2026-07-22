@@ -319,9 +319,25 @@ class ComingSoonCard extends HTMLElement {
     }
   }
 
+  _resolveEntityValue(value) {
+    // If the value looks like a Home Assistant entity ID, resolve it from hass.states
+    if (value && typeof value === 'string' && this._hass && this._hass.states) {
+      const entityId = value.trim();
+      if (/^(sensor|input_text|binary_sensor|var|text)\./.test(entityId)) {
+        const stateObj = this._hass.states[entityId];
+        if (stateObj && stateObj.state && stateObj.state !== 'unavailable' && stateObj.state !== 'unknown') {
+          return stateObj.state;
+        }
+        console.warn(`Coming Soon Card: Entity ${entityId} not found or unavailable, using raw value`);
+      }
+    }
+    return value;
+  }
+
   async _fetchTraktData(startDate) {
     const clientId = this._config.trakt_api_key;
-    const accessToken = this._config.trakt_access_token;
+    const rawToken = this._config.trakt_access_token;
+    const accessToken = this._resolveEntityValue(rawToken);
     const days = 90;
 
     const headers = {
