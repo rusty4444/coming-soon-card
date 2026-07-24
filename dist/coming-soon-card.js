@@ -31,6 +31,7 @@ class ComingSoonCard extends HTMLElement {
     this._cycleTimer = null;
     this._config = {};
     this._trailerCache = {};
+    this._lastResolvedTraktAccessToken = undefined;
   }
 
   setConfig(config) {
@@ -81,6 +82,17 @@ class ComingSoonCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+
+    // If the Trakt access token is provided via a Home Assistant entity, the
+    // entity value can arrive after setConfig() runs or change when an external
+    // token refresher updates it. Refetch when the resolved token changes.
+    if (this._config?.trakt_api_key && this._looksLikeEntityId(this._config.trakt_access_token)) {
+      const accessToken = this._resolveEntityValue(this._config.trakt_access_token);
+      if (accessToken && accessToken !== this._lastResolvedTraktAccessToken) {
+        this._lastResolvedTraktAccessToken = accessToken;
+        this._fetchData();
+      }
+    }
   }
 
   _getOrdinal(n) {
@@ -319,25 +331,39 @@ class ComingSoonCard extends HTMLElement {
     }
   }
 
+  _looksLikeEntityId(value) {
+    return typeof value === 'string' && /^(sensor|input_text|binary_sensor|var|text)\./.test(value.trim());
+  }
+
   _resolveEntityValue(value) {
-    // If the value looks like a Home Assistant entity ID, resolve it from hass.states
-    if (value && typeof value === 'string' && this._hass && this._hass.states) {
-      const entityId = value.trim();
-      if (/^(sensor|input_text|binary_sensor|var|text)\./.test(entityId)) {
-        const stateObj = this._hass.states[entityId];
-        if (stateObj && stateObj.state && stateObj.state !== 'unavailable' && stateObj.state !== 'unknown') {
-          return stateObj.state;
-        }
-        console.warn(`Coming Soon Card: Entity ${entityId} not found or unavailable, using raw value`);
-      }
+    if (!this._looksLikeEntityId(value)) return value;
+
+    const entityId = value.trim();
+    if (!this._hass || !this._hass.states) {
+      console.warn(`Coming Soon Card: Entity ${entityId} configured for Trakt token, waiting for Home Assistant state`);
+      return null;
     }
-    return value;
+
+    const stateObj = this._hass.states[entityId];
+    const state = stateObj?.state;
+    if (state && state !== 'unavailable' && state !== 'unknown') {
+      return state.trim();
+    }
+
+    console.warn(`Coming Soon Card: Entity ${entityId} not found or unavailable`);
+    return null;
   }
 
   async _fetchTraktData(startDate) {
     const clientId = this._config.trakt_api_key;
     const rawToken = this._config.trakt_access_token;
     const accessToken = this._resolveEntityValue(rawToken);
+    if (this._looksLikeEntityId(rawToken)) {
+      this._lastResolvedTraktAccessToken = accessToken || null;
+      if (!accessToken) {
+        return { movies: [], shows: [] };
+      }
+    }
     const days = 90;
 
     const headers = {

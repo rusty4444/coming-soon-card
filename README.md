@@ -221,11 +221,11 @@ Trakt shows upcoming movies and TV episodes from your watchlist and followed sho
 3. Give it a name, set Redirect URI to `urn:ietf:wg:oauth:2.0:oob`, save
 4. Copy the **Client ID** and paste it into `trakt_api_key`
 
-### Getting a Trakt Access Token (optional — for private calendars)
-If your Trakt profile is public, the Client ID alone is enough. For private profiles you need an access token.
+### Getting a Trakt Access Token
+The card uses Trakt's personal calendar endpoints, so Trakt calendar support needs an OAuth access token. A public Trakt profile does not remove this requirement.
 
 **Option 1 — Home Assistant entity (recommended)**
-Store the access token in a Home Assistant entity (e.g., an `input_text` helper or a sensor) and set `trakt_access_token` to the entity ID. The card resolves the token at fetch time, so you can update the entity value without editing dashboard YAML.
+Store the access token in a Home Assistant entity (e.g., an `input_text` helper or a sensor) and set `trakt_access_token` to the entity ID. The card resolves the token from Home Assistant state at fetch time and refetches when that entity value changes, so you can update the token without editing dashboard YAML.
 
 ```yaml
 trakt_access_token: input_text.trakt_access_token
