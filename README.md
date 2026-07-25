@@ -157,7 +157,7 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN
 | `sonarr_url` | string | — | Sonarr server URL (e.g., `http://192.168.1.100:8989`) |
 | `sonarr_api_key` | string | — | Sonarr API key |
 | `trakt_api_key` | string | — | Trakt Client ID — enables Trakt calendar |
-| `trakt_access_token` | string | — | Trakt OAuth access token (for private calendar) |
+| `trakt_access_token` | string | — | Trakt OAuth access token, or a Home Assistant entity ID (e.g., `input_text.trakt_access_token`) that holds the token. See [Trakt Integration](#trakt-integration) for details |
 | `movies_count` | number | `5` | Number of upcoming movies to display |
 | `shows_count` | number | `5` | Number of upcoming TV episodes to display |
 | `cycle_interval` | number | `8` | Seconds between cycling to the next item |
@@ -169,8 +169,14 @@ tmdb_api_key: YOUR_TMDB_READ_ACCESS_TOKEN
 | `tmdb_api_key` | string | — | TMDB Read Access Token — enables posters (for Trakt) and trailers |
 | `date_format` | string | `"ordinal"` | Date format for release/air dates — see table below |
 | `trailer_mode` | string | `"popup"` | `popup` (fullscreen overlay) or `inline` (plays on top of card) |
+| `show_trailer_button` | boolean | `true` | Show the trailer button in the card header. Set to `false` to hide it |
+| `show_navigation` | boolean | `false` | Show prev/next arrow buttons for manual navigation through items |
+| `loop_carousel` | boolean | `true` | Loop back to the first item after the last. Set to `false` for non-looping carousel with clear endpoints (works well with `show_navigation: true`) |
+| `background_mode` | string | `"artwork"` | Card background: `artwork` (blurred fanart, default), `theme` (use HA theme background), or `transparent` (no background) |
 | `fill_height` | boolean | `true` | Card stretches to fill container. Disable if card appears collapsed |
 | `card_height` | number | `300` | Height in pixels when `fill_height` is `false` |
+
+> **Tip:** For a manual-only browsing experience with clear start/end points, set `show_navigation: true`, `loop_carousel: false`, and a high `cycle_interval` (e.g., `999`).
 
 At least one data source is required — either Radarr/Sonarr, Trakt, or both.
 
@@ -215,10 +221,23 @@ Trakt shows upcoming movies and TV episodes from your watchlist and followed sho
 3. Give it a name, set Redirect URI to `urn:ietf:wg:oauth:2.0:oob`, save
 4. Copy the **Client ID** and paste it into `trakt_api_key`
 
-### Getting a Trakt Access Token (optional — for private calendars)
-If your Trakt profile is public, the Client ID alone is enough. For private profiles:
-1. Use a tool like [Trakt Token Generator](https://steve228uk.github.io/trakt-token-generator/) or the Trakt OAuth flow
-2. Paste the resulting access token into `trakt_access_token`
+### Getting a Trakt Access Token
+The card uses Trakt's personal calendar endpoints, so Trakt calendar support needs an OAuth access token. A public Trakt profile does not remove this requirement.
+
+**Option 1 — Home Assistant entity (recommended)**
+Store the access token in a Home Assistant entity (e.g., an `input_text` helper or a sensor) and set `trakt_access_token` to the entity ID. The card resolves the token from Home Assistant state at fetch time and refetches when that entity value changes, so you can update the token without editing dashboard YAML.
+
+```yaml
+trakt_access_token: input_text.trakt_access_token
+```
+
+> **Tip:** Use [AppDaemon](https://appdaemon.readthedocs.io/) or a custom script to manage Trakt OAuth refresh tokens and publish the current access token to a Home Assistant entity.
+
+**Option 2 — Static token**
+1. Generate a Trakt access token through the [Trakt OAuth flow](https://trakt.docs.apiary.io/#reference/authentication-oauth)
+2. Paste the resulting access token directly into `trakt_access_token`
+
+Note: Static access tokens in dashboard YAML expire and need manual refresh. The entity-based approach (Option 1) is recommended for long-term use.
 
 ### How Trakt + TMDB works
 Trakt doesn't provide images. When a TMDB API key is set, the card automatically fetches posters and fanart from TMDB for each Trakt item. Without a TMDB key, items will show a placeholder shimmer.
